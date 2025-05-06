@@ -9,12 +9,12 @@ services:
       - "8000:8000"
     environment:
       - PYTHONPATH=/app
-      # Add development-specific environment variables here
       - DEBUG=true
+      # Database connection string
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/app_db
+      - ALEMBIC_CONFIG=/app/alembic.ini
     develop:
-      # Create a watch configuration to update the app
       watch:
-        # Sync the working directory with the container
         - action: sync
           path: .
           target: /app
@@ -24,12 +24,32 @@ services:
             - .git/
             - .pytest_cache/
             - .mypy_cache/
-
-        # Rebuild if dependencies change
         - action: rebuild
           path: ./uv.lock
     volumes:
-      # Mount the project directory in read-write mode, but exclude the .venv directory
       - ./:/app
       - /app/.venv
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=app_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
